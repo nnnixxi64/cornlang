@@ -1,0 +1,13 @@
+unsafe {
+    native int: printf(string, ...)
+}
+
+safe void: print(string: s) {
+    printf("%s", s)
+    return
+}
+
+safe void: println(string: s) {
+    printf("%s\n", s)
+    return
+}
