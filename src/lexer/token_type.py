@@ -17,6 +17,7 @@ class TokenType(int, Enum):
     SAFE = auto()
     IF = auto()
     ELSE = auto()
+    DO = auto()
     WHILE = auto()
     LOOP = auto()
     BREAK = auto()

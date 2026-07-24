@@ -5,8 +5,8 @@ from ..ast.ast_nodes import (
     UnsafeNode, ImportNode, ExpressionNode, VariableNode,
     FunctionCallNode, BindingNode, NullNode, NumberNode, StringNode,
     BooleanNode, BlockNode, DefArgumentNode, NativeArgumentNode,
-    ReturnNode, FunctionDefNode, IfNode, WhileNode, BreakNode,
-    ContinueNode, AsNode,
+    ReturnNode, FunctionDefNode, IfNode, DoWhileNode, WhileNode,
+    BreakNode, ContinueNode, AsNode,
 )
 from ..ast.ast_visitor import AstVisitor
 from ..error import CornError
@@ -257,6 +257,25 @@ class CodegenVisitor(AstVisitor):
             if not self.builder.block.is_terminated:
                 self.builder.branch(merge_block)
         self.builder.position_at_start(merge_block)
+
+    def visit_do_while_node(self, node: DoWhileNode) -> None:
+        body_block: ir.Block = self.builder.append_basic_block("do_while_body")
+        cond_block: ir.Block = self.builder.append_basic_block("do_while_cond")
+        exit_block: ir.Block = self.builder.append_basic_block("do_while_exit")
+        self.builder.branch(body_block)
+        self.builder.position_at_start(body_block)
+        self.loop_stack.append((cond_block, exit_block))
+        try:
+            self.visit(node.body)
+        finally:
+            self.loop_stack.pop()
+        self.builder.branch(cond_block)
+        self.builder.position_at_start(cond_block)
+        condition: ir.Value
+        _ty: ir.Type
+        condition, _ty = self.visit(node.condition)
+        self.builder.cbranch(condition, body_block, exit_block)
+        self.builder.position_at_start(exit_block)
 
     def visit_while_node(self, node: WhileNode) -> None:
         cond_block: ir.Block = self.builder.append_basic_block("while_cond")

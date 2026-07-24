@@ -16,6 +16,7 @@ KEYWORDS: dict[str, TokenType] = {
     'safe': TokenType.SAFE,
     'if': TokenType.IF,
     'else': TokenType.ELSE,
+    'do': TokenType.DO,
     'while': TokenType.WHILE,
     'loop': TokenType.LOOP,
     'break': TokenType.BREAK,

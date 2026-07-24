@@ -4,7 +4,8 @@ from ..ast.ast_nodes import (
     AstNode, ExpressionNode, VariableNode, FunctionCallNode, BindingNode,
     NullNode, NumberNode, StringNode, BooleanNode, BlockNode, UnsafeNode,
     DefArgumentNode, NativeArgumentNode, ReturnNode, FunctionDefNode,
-    IfNode, WhileNode, BreakNode, ContinueNode, AsNode, ImportNode,
+    IfNode, DoWhileNode, WhileNode, BreakNode,
+    ContinueNode, AsNode, ImportNode,
 )
 from ..error import CornError
 from ..lexer import Lexer, Token, TokenType
@@ -142,6 +143,8 @@ class Parser:
                 return self._parse_return()
             case TokenType.IF:
                 return self._parse_if()
+            case TokenType.DO:
+                return self._parse_do_while()
             case TokenType.WHILE:
                 return self._parse_while()
             case TokenType.LOOP:
@@ -182,6 +185,16 @@ class Parser:
                 self.expect(TokenType.LBRACE)
                 otherwise = self.parse_block()
         return IfNode(condition, then, otherwise)
+
+    def _parse_do_while(self) -> DoWhileNode:
+        self.next_token()
+        self.expect(TokenType.LBRACE)
+        body: BlockNode = self.parse_block()
+        self.expect(TokenType.WHILE)
+        self.expect(TokenType.LPAREN)
+        condition: AstNode = self.parse_condition()
+        self.expect(TokenType.RPAREN)
+        return DoWhileNode(condition, body)
 
     def _parse_while(self) -> WhileNode:
         self.next_token()

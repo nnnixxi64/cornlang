@@ -115,6 +115,12 @@ class IfNode(AstNode):
 
 
 @dataclass(slots=True)
+class DoWhileNode(AstNode):
+    condition: AstNode
+    body: BlockNode
+
+
+@dataclass(slots=True)
 class WhileNode(AstNode):
     condition: AstNode
     body: BlockNode

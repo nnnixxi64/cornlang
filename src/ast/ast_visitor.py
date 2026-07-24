@@ -5,8 +5,8 @@ from .ast_nodes import (
     AstNode, UnsafeNode, ImportNode, ExpressionNode, VariableNode,
     FunctionCallNode, BindingNode, NullNode, NumberNode, StringNode,
     BooleanNode, BlockNode, DefArgumentNode, NativeArgumentNode,
-    ReturnNode, FunctionDefNode, IfNode, WhileNode, BreakNode,
-    ContinueNode, AsNode,
+    ReturnNode, FunctionDefNode, IfNode, DoWhileNode, WhileNode,
+    BreakNode, ContinueNode, AsNode,
 )
 
 
@@ -76,6 +76,10 @@ class AstVisitor(ABC):
         pass
 
     @abstractmethod
+    def visit_do_while_node(self, node: DoWhileNode) -> Any:
+        pass
+
+    @abstractmethod
     def visit_while_node(self, node: WhileNode) -> Any:
         pass
 
@@ -121,6 +125,8 @@ class AstVisitor(ABC):
                 return self.visit_return_node(node)
             case IfNode():
                 return self.visit_if_node(node)
+            case DoWhileNode():
+                return self.visit_do_while_node(node)
             case WhileNode():
                 return self.visit_while_node(node)
             case BreakNode():

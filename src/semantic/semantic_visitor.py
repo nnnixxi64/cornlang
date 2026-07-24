@@ -8,8 +8,8 @@ from ..ast.ast_nodes import (
     AstNode, UnsafeNode, ImportNode, ExpressionNode, VariableNode,
     FunctionCallNode, BindingNode, NullNode, NumberNode, StringNode,
     BooleanNode, BlockNode, DefArgumentNode, NativeArgumentNode,
-    ReturnNode, FunctionDefNode, IfNode, WhileNode, BreakNode,
-    ContinueNode, AsNode,
+    ReturnNode, FunctionDefNode, IfNode, DoWhileNode, WhileNode, 
+    BreakNode, ContinueNode, AsNode,
 )
 from ..ast.ast_visitor import AstVisitor
 from ..error import CornError
@@ -322,6 +322,11 @@ class SemanticVisitor(AstVisitor):
         node.then = BlockNode([self.visit(child) for child in node.then.nodes])
         if node.otherwise is not None:
             node.otherwise = BlockNode([self.visit(child) for child in node.otherwise.nodes])
+        return node
+
+    def visit_do_while_node(self, node: DoWhileNode) -> DoWhileNode:
+        node.condition = self.visit(node.condition)
+        node.body = BlockNode([self.visit(child) for child in node.body.nodes])
         return node
 
     def visit_while_node(self, node: WhileNode) -> WhileNode:
