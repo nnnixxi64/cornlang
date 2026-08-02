@@ -27,6 +27,15 @@ class Parser:
             raise CornError(f"Unexpected symbol at line {self.current.line} col {self.current.col}")
         self.next_token()
 
+    def parse_shift(self) -> AstNode:
+        left: AstNode = self.parse_additive()
+        while self.current.type in (TokenType.LSHIFT, TokenType.RSHIFT):
+            op: TokenType = self.current.type
+            self.next_token()
+            right: AstNode = self.parse_additive()
+            left = ExpressionNode(left, right, op)
+        return left
+
     def parse_additive(self) -> AstNode:
         left: AstNode = self.parse_multiplicative()
         while self.current.type in (TokenType.PLUS, TokenType.MINUS):
@@ -37,13 +46,28 @@ class Parser:
         return left
 
     def parse_multiplicative(self) -> AstNode:
-        left: AstNode = self.parse_primary()
+        left: AstNode = self.parse_power()
         while self.current.type in (TokenType.TIMES, TokenType.DIVIDE, TokenType.MOD, TokenType.TILDE):
             op: TokenType = self.current.type
             self.next_token()
-            right: AstNode = self.parse_primary()
+            right: AstNode = self.parse_power()
             left = ExpressionNode(left, right, op)
         return left
+
+    def parse_power(self) -> AstNode:
+        left: AstNode = self.parse_unary()
+        while self.current.type == TokenType.POWER:
+            self.next_token()
+            right: AstNode = self.parse_unary()
+            left = ExpressionNode(left, right, TokenType.POWER)
+        return left
+
+    def parse_unary(self) -> AstNode:
+        if self.current.type == TokenType.MINUS:
+            self.next_token()
+            expr: AstNode = self.parse_primary()
+            return ExpressionNode(expr, None, TokenType.MINUS)
+        return self.parse_primary()
 
     def parse_primary(self) -> AstNode:
         node: AstNode = self._parse_atom()
@@ -75,7 +99,7 @@ class Parser:
                 return NullNode()
             case TokenType.LPAREN:
                 self.next_token()
-                node: AstNode = self.parse_additive()
+                node: AstNode = self.parse_shift()
                 self.expect(TokenType.RPAREN)
                 return node
             case _:
@@ -98,10 +122,10 @@ class Parser:
         self.next_token()
         args: list[AstNode] = []
         if self.current.type != TokenType.RPAREN:
-            args.append(self.parse_additive())
+            args.append(self.parse_shift())
             while self.current.type == TokenType.COMMA:
                 self.next_token()
-                args.append(self.parse_additive())
+                args.append(self.parse_shift())
         self.expect(TokenType.RPAREN)
         return FunctionCallNode(module_name, name, args, asserted)
 
@@ -121,7 +145,7 @@ class Parser:
         return StringNode(value)
 
     def parse_condition(self) -> AstNode:
-        left: AstNode = self.parse_additive()
+        left: AstNode = self.parse_shift()
         COMPARE_OPS: tuple[TokenType, ...] = (
             TokenType.GE, TokenType.GT, TokenType.LE, TokenType.LT,
             TokenType.NE, TokenType.EQEQ, TokenType.IS,
@@ -133,7 +157,16 @@ class Parser:
         if op == TokenType.IS:
             pass
         else:
-            right = self.parse_additive()
+            right = self.parse_shift()
+            left = ExpressionNode(left, right, op)
+        return left
+
+    def parse_bitwise(self) -> AstNode:
+        left: AstNode = self.parse_condition()
+        while self.current.type in (TokenType.AND, TokenType.OR, TokenType.XOR):
+            op: TokenType = self.current.type
+            self.next_token()
+            right: AstNode = self.parse_condition()
             left = ExpressionNode(left, right, op)
         return left
 
@@ -166,13 +199,13 @@ class Parser:
             TokenType.FLOAT, TokenType.STRING, TokenType.LPAREN,
         )
         if self.current.type in EXPR_STARTERS:
-            expr = self.parse_additive()
+            expr = self.parse_shift()
         return ReturnNode(expr)
 
     def _parse_if(self) -> IfNode:
         self.next_token()
         self.expect(TokenType.LPAREN)
-        condition: AstNode = self.parse_condition()
+        condition: AstNode = self.parse_bitwise()
         self.expect(TokenType.RPAREN)
         self.expect(TokenType.LBRACE)
         then: BlockNode = self.parse_block()
@@ -192,14 +225,14 @@ class Parser:
         body: BlockNode = self.parse_block()
         self.expect(TokenType.WHILE)
         self.expect(TokenType.LPAREN)
-        condition: AstNode = self.parse_condition()
+        condition: AstNode = self.parse_bitwise()
         self.expect(TokenType.RPAREN)
         return DoWhileNode(condition, body)
 
     def _parse_while(self) -> WhileNode:
         self.next_token()
         self.expect(TokenType.LPAREN)
-        condition: AstNode = self.parse_condition()
+        condition: AstNode = self.parse_bitwise()
         self.expect(TokenType.RPAREN)
         self.expect(TokenType.LBRACE)
         body: BlockNode = self.parse_block()
@@ -242,8 +275,17 @@ class Parser:
                             is_nullable: bool = False) -> FunctionDefNode:
         args: list[DefArgumentNode] = self._parse_function_args()
         self.expect(TokenType.RPAREN)
-        self.expect(TokenType.LBRACE)
-        body: BlockNode = self.parse_block()
+        body: BlockNode
+        if self.current.type == TokenType.LBRACE:
+            self.next_token()
+            body = self.parse_block()
+        elif self.current.type == TokenType.EQ:
+            self.next_token()
+            self.expect(TokenType.GT)
+            expr: AstNode = self.parse_shift()
+            body = BlockNode([ReturnNode(expr)])
+        else:
+            raise CornError(f"Expected '{{' or '=' after arguments at line {self.current.line} col {self.current.col}")
         return FunctionDefNode(return_type, name, args, body, False, is_safe=is_safe, is_nullable=is_nullable)
 
     def _parse_function_args(self) -> list[DefArgumentNode]:
@@ -335,10 +377,10 @@ class Parser:
     def _parse_typed_binding(self, type_name: Optional[str], names: list[str], is_mut: bool,
                              is_nullable: bool) -> BindingNode:
         self.expect(TokenType.EQ)
-        exprs: list[AstNode] = [self.parse_additive()]
+        exprs: list[AstNode] = [self.parse_shift()]
         while self.current.type == TokenType.COMMA:
             self.next_token()
-            exprs.append(self.parse_additive())
+            exprs.append(self.parse_shift())
         if len(exprs) == 1 and len(names) > 1:
             exprs = exprs * len(names)
         elif len(exprs) != len(names):
@@ -403,7 +445,7 @@ class Parser:
             case TokenType.EQ | TokenType.COMMA:
                 return self._parse_dynamic_binding(is_mut=False)
             case _:
-                return self.parse_additive()
+                return self.parse_shift()
 
     def parse(self) -> list[AstNode]:
         nodes: list[AstNode] = []

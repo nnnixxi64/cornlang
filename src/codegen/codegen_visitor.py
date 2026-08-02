@@ -17,6 +17,8 @@ class CodegenVisitor(AstVisitor):
     def __init__(self, module: ir.Module):
         self.type_map: dict[str, ir.Type] = {
             'boolean': ir.IntType(1),
+            'int8': ir.IntType(8),
+            'int16': ir.IntType(16),
             'int': ir.IntType(32),
             'int32': ir.IntType(32),
             'int64': ir.IntType(64),
@@ -108,6 +110,8 @@ class CodegenVisitor(AstVisitor):
             case TokenType.PLUS:
                 return self.builder.add(left, right), ir.IntType(32)
             case TokenType.MINUS:
+                if not right:
+                    return self.builder.neg(left), ir.IntType(32)
                 return self.builder.sub(left, right), ir.IntType(32)
             case TokenType.TIMES:
                 return self.builder.mul(left, right), ir.IntType(32)
@@ -118,6 +122,59 @@ class CodegenVisitor(AstVisitor):
             case TokenType.TILDE:
                 val: ir.Value = self.builder.sdiv(left, right)
                 return self.builder.fptosi(val, self.type_map['int']), ir.IntType(32)
+            case TokenType.POWER:
+                result = self.builder.alloca(ir.IntType(32))
+                self.builder.store(ir.Constant(ir.IntType(32), 1), result)
+
+                base = self.builder.alloca(ir.IntType(32))
+                self.builder.store(left, base)
+
+                exponent = self.builder.alloca(ir.IntType(32))
+                self.builder.store(right, exponent)
+
+                cond_block = self.builder.append_basic_block("while_cond")
+                body_block = self.builder.append_basic_block("while_body")
+                exit_block = self.builder.append_basic_block("while_exit")
+
+                self.builder.branch(cond_block)
+                self.builder.position_at_start(cond_block)
+
+                exp_val = self.builder.load(exponent)
+                cond = self.builder.icmp_signed('>', exp_val, ir.Constant(ir.IntType(32), 0))
+                self.builder.cbranch(cond, body_block, exit_block)
+
+                self.builder.position_at_start(body_block)
+
+                exp_val = self.builder.load(exponent)
+                rem = self.builder.srem(exp_val, ir.Constant(ir.IntType(32), 2))
+                is_odd = self.builder.icmp_signed('==', rem, ir.Constant(ir.IntType(32), 1))
+
+                then_block = self.builder.append_basic_block("if_then")
+                if_exit = self.builder.append_basic_block("if_exit")
+
+                self.builder.cbranch(is_odd, then_block, if_exit)
+
+                self.builder.position_at_start(then_block)
+                res_val = self.builder.load(result)
+                base_val = self.builder.load(base)
+                multiplied = self.builder.mul(res_val, base_val)
+                self.builder.store(multiplied, result)
+                self.builder.branch(if_exit)
+
+                self.builder.position_at_start(if_exit)
+                base_val = self.builder.load(base)
+                base_sq = self.builder.mul(base_val, base_val)
+                self.builder.store(base_sq, base)
+
+                exp_val = self.builder.load(exponent)
+                exp_div = self.builder.sdiv(exp_val, ir.Constant(ir.IntType(32), 2))
+                self.builder.store(exp_div, exponent)
+
+                self.builder.branch(cond_block)
+                self.builder.position_at_start(exit_block)
+                
+                final_result = self.builder.load(result)
+                return final_result, ir.IntType(32)
             case TokenType.AND:
                 return self.builder.and_(left, right), ir.IntType(32)
             case TokenType.OR:
@@ -142,6 +199,8 @@ class CodegenVisitor(AstVisitor):
             case TokenType.PLUS:
                 return self.builder.fadd(left, right), ir.FloatType()
             case TokenType.MINUS:
+                if not right:
+                    return self.builder.fneg(left), ir.FloatType()
                 return self.builder.fsub(left, right), ir.FloatType()
             case TokenType.TIMES:
                 return self.builder.fmul(left, right), ir.FloatType()
@@ -152,15 +211,18 @@ class CodegenVisitor(AstVisitor):
             case TokenType.TILDE:
                 val: ir.Value = self.builder.fdiv(left, right)
                 return self.builder.fptosi(val, self.type_map['int']), ir.IntType(32)
+            case TokenType.POWER:
+                pass # ToDo
         raise CornError(f"Unknown float binary operator: {op}")
 
     def visit_expression_node(self, node: ExpressionNode) -> tuple[ir.Value, ir.Type]:
         left: ir.Value
         left_type: ir.Type
         left, left_type = self.visit(node.left)
-        right: ir.Value
-        right_type: ir.Type
-        right, right_type = self.visit(node.right)
+        right: Optional[ir.Value] = None
+        right_type: ir.Type = left_type
+        if node.right:
+            right, right_type = self.visit(node.right)
         if isinstance(left_type, ir.FloatType) and isinstance(right_type, ir.FloatType):
             return self._emit_float_binary_op(left, right, node.op)
         if isinstance(left_type, ir.IntType) and isinstance(right_type, ir.IntType):

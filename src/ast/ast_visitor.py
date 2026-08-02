@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from .ast_nodes import (
     AstNode, UnsafeNode, ImportNode, ExpressionNode, VariableNode,
@@ -95,7 +95,7 @@ class AstVisitor(ABC):
     def visit_as_node(self, node: AsNode) -> Any:
         pass
 
-    def visit(self, node: AstNode) -> Any:
+    def visit(self, node: Optional[AstNode]) -> Any:
         match node:
             case UnsafeNode():
                 return self.visit_unsafe_node(node)

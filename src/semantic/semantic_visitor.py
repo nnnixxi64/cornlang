@@ -17,14 +17,15 @@ from ..lexer import TokenType
 from ..parser import Parser
 
 BUILTIN_TYPES: list[str] = [
-    'boolean', 'int', 'int32', 'int64',
-    'float', 'float32', 'double', 'float64',
-    'void', 'char', 'string',
+    'boolean', 'int8', 'int16', 'int',
+    'int32', 'int64', 'float', 'float32',
+    'float64', 'void', 'char', 'string',
 ]
 
 ARITHMETIC_OPS: tuple[TokenType, ...] = (
     TokenType.PLUS, TokenType.MINUS, TokenType.TIMES,
     TokenType.DIVIDE, TokenType.MOD, TokenType.TILDE,
+    TokenType.POWER,
 )
 
 
@@ -159,7 +160,9 @@ class SemanticVisitor(AstVisitor):
 
     def _type_of_expression(self, node: ExpressionNode) -> str:
         left_type: str = self.visit_type(node.left)
-        right_type: str = self.visit_type(node.right)
+        right_type: str = left_type
+        if node.right:
+            right_type = self.visit_type(node.right)
         if left_type == right_type and node.op in ARITHMETIC_OPS:
             return left_type
         return 'boolean'

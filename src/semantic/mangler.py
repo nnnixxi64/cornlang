@@ -2,16 +2,17 @@ class Mangler:
     def __init__(self) -> None:
         self.typecode_map: dict[str, str] = {
             'boolean': 'b',
+            'int8': 'c',
+            'int16': 's',
             'int': 'i',
             'int32': 'i',
             'int64': 'l',
             'float': 'f',
             'float32': 'f',
-            'double': 'd',
             'float64': 'd',
             'void': 'v',
             'char': 'c',
-            'string': 's',
+            'string': 't',
         }
 
     def mangle_function_name(self, name: str, args: list[str], module_name: str = '') -> str:

@@ -16,7 +16,7 @@ class ImportNode(AstNode):
 @dataclass(slots=True)
 class ExpressionNode(AstNode):
     left: AstNode
-    right: AstNode
+    right: Optional[AstNode]
     op: TokenType
 
 

@@ -53,6 +53,7 @@ OPERATORS: dict[str, TokenType] = {
     '/': TokenType.DIVIDE,
     '%': TokenType.MOD,
     '~/': TokenType.TILDE,
+    '**': TokenType.POWER,
     ':': TokenType.COLON,
     ',': TokenType.COMMA,
     '.': TokenType.DOT,
@@ -127,8 +128,11 @@ class Lexer:
         lexeme: str = ''
         while True:
             ch: Optional[str] = self.peek()
-            if ch is None or not (ch.isdigit() or ch == '.'):
+            if ch is None or not (ch.isdigit() or ch in ('.', '_')):
                 break
+            if ch == '_':
+                self.advance()
+                continue
             if ch == '.':
                 if token_type == TokenType.FLOAT:
                     raise CornError(f"Invalid float format at line {self.line}, col {self.col}")
